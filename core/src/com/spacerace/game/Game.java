@@ -13,6 +13,7 @@ import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.input.GestureDetector;
 import com.badlogic.gdx.math.Circle;
 import com.badlogic.gdx.math.EarClippingTriangulator;
@@ -20,6 +21,7 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
+import com.badlogic.gdx.physics.box2d.joints.MotorJoint;
 import com.badlogic.gdx.physics.box2d.joints.PrismaticJoint;
 import com.badlogic.gdx.physics.box2d.joints.PrismaticJointDef;
 import com.badlogic.gdx.physics.box2d.joints.RevoluteJoint;
@@ -33,9 +35,11 @@ import java.util.Random;
 
 public class Game extends ApplicationAdapter implements GestureDetector.GestureListener{
 
+    PolygonSpriteBatch polyBatch;
+    SpriteBatch spriteBatch;
+
     Texture textureSolid;
     PolygonSprite polySprite;
-    PolygonSpriteBatch polyBatch;
 
 	World world;
     OrthographicCamera camera;
@@ -49,8 +53,6 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
     int holder;
     float[] test = new float[512];
 
-    Texture carImage;
-
     //test terrain poly
     float[][] polyVerts = new float[50][8];
     Body[] groundBody = new Body[50];
@@ -59,13 +61,15 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
     FixtureDef[] groundFixtureDef = new FixtureDef[50];
     PolygonShape[] groundPoly = new PolygonShape[50];
 
-    //car variables
-    Body cart, wheel1Body, wheel2Body, axle1Body, axle2Body;
-    PrismaticJoint spring1PrisJoint, spring2PrisJoint;
-    RevoluteJoint motor1RevJoint, motor2RevJoint;
 
-    //Debug renderer
+
+    float speed;
+
+    Car car;
+
+    //Renderer
     Box2DDebugRenderer debugRenderer;
+    ShapeRenderer shapeRenderer;
     Matrix4 debugMatrix;
 
 	@Override
@@ -74,6 +78,7 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 
         start = 0;
         holder = 0;
+        speed = 1f;
 
         camera = new OrthographicCamera(Gdx.graphics.getWidth(),Gdx.graphics.getHeight());
         camera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
@@ -81,7 +86,12 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 
         Gdx.input.setInputProcessor(new GestureDetector(this));
 
+        //testing wheel sprite
+        spriteBatch = new SpriteBatch();
+
+        shapeRenderer = new ShapeRenderer();
         debugRenderer = new Box2DDebugRenderer();
+
 
         polyBatch = new PolygonSpriteBatch(); // To assign at the beginning
 
@@ -97,6 +107,9 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 		// Create a physics world, the heart of the simulation.  The Vecto passed in is gravity
 		world = new World(new Vector2(0, -9.86f), true);
 
+        car = new Car();
+        car.createVehicle(world);
+
         verts = new ArrayList<Float>();
         float increment = 128.0f;
 
@@ -106,25 +119,12 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 
         test();
 
-        createVehicle();
-
         //ground
         setGroundBody();
 
-
         debugMatrix = new Matrix4(camera.combined);
-
-
 	}
-    public static int randInt(int min, int max) {
 
-        Random rand;
-        rand = new Random();
-
-        int randomNum = rand.nextInt((max - min) + 1) + min;
-
-        return randomNum;
-    }
 
 	@Override
 	public void render()
@@ -142,26 +142,54 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 		// update rate to the frame rate, and vice versa
 		world.step(Gdx.graphics.getDeltaTime(), 6, 2);
 
+        camera.update();
+        shapeRenderer.setProjectionMatrix(camera.combined);
 
         Gdx.gl.glClearColor(1, 1, 1, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        //carSprite.setPosition(carBody.getPosition().x, carBody.getPosition().y);
-       // testSprite.setPosition(groundBody[0].getPosition().x, groundBody[0].getPosition().y);
+
+        // *****************************check where the sprites are supposed to be*************************** //
+        /*
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0, 1, 0, 1);
+        //shapeRenderer.circle(wheel1Body.getPosition().x, wheel1Body.getPosition().y, 32f);
+        //shapeRenderer.rect(cart.getPosition().x - 124, cart.getPosition().y - 60, 248, 120);
+        shapeRenderer.end();
+        */
 
 
-       // spriteBatch.setProjectionMatrix(camera.combined);
-        //spriteBatch.begin();
+        //carSprite.setPosition(cart.getPosition().x - 124, cart.getPosition().y - 60);
+        //carSprite.setRotation(cart.getTransform().getRotation()* (float)degreesToRadians);
+
+        spriteBatch.setProjectionMatrix(camera.combined);
+
+        spriteBatch.begin();
+        //wheelSprite.setPosition(leftWheel.getPosition().x - 32, leftWheel.getPosition().y - 32);
+        //spriteBatch.draw(wheelSprite, wheelSprite.getX(), wheelSprite.getY());
+        //wheelSprite.setPosition(rightWheel.getPosition().x - 32, rightWheel.getPosition().y - 32);
+        //spriteBatch.draw(wheelSprite, wheelSprite.getX(), wheelSprite.getY());
+
         //spriteBatch.draw(carSprite, carSprite.getX(), carSprite.getY());
         debugRenderer.render(world, debugMatrix);
-        //spriteBatch.end();
+        spriteBatch.end();
 
-        //polyBatch.setProjectionMatrix(camera.combined);
-        //polyBatch.begin();
-        //polySprite.draw(polyBatch);
-        //polyBatch.end();
+        polyBatch.setProjectionMatrix(camera.combined);
+        polyBatch.begin();
+        polySprite.draw(polyBatch);
+        polyBatch.end();
 
 	}
+
+    public static int randInt(int min, int max) {
+
+        Random rand;
+        rand = new Random();
+
+        int randomNum = rand.nextInt((max - min) + 1) + min;
+
+        return randomNum;
+    }
 
     public void test()
     {
@@ -214,7 +242,8 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
             else
                 verts.add(verts.get(i - 3));
 
-            float randY = (float)randInt(0, 50);
+            //float randY = (float)randInt(0, 50);
+            float randY = 0;
             verts.add(verts.get(i) + _increment);
             if(climbing)
                 verts.add(verts.get(i + 3) + randY);
@@ -246,110 +275,11 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 
             groundFixtureDef[i] = new FixtureDef();
             groundFixtureDef[i].shape = groundPoly[i];
+            groundFixtureDef[i].friction = 0.5f;
+            groundFixtureDef[i].density = 2f;
 
             groundFixture[i] = groundBody[i].createFixture(groundFixtureDef[i]);
         }
-
-    }
-
-    public void createVehicle()
-    {
-
-        BodyDef bodyDef = new BodyDef();
-        bodyDef.type = BodyDef.BodyType.DynamicBody;
-        bodyDef.position.set(Gdx.graphics.getWidth() / 2, Gdx.graphics.getHeight()/2);
-
-        cart = world.createBody(bodyDef);
-
-        PolygonShape polyBox = new PolygonShape();
-        polyBox.setAsBox(150f, 30f);
-
-        FixtureDef boxDef = new FixtureDef();
-        boxDef.shape = polyBox;
-        boxDef.density = 2;
-        boxDef.friction = 0.5f;
-        boxDef.restitution = 0.2f;
-        boxDef.filter.groupIndex = -1;
-        cart.createFixture(boxDef);
-
-        polyBox.setAsBox(40f, 15f, new Vector2(-100, -30f), (float)Math.PI/3);
-        cart.createFixture(boxDef);
-
-        polyBox.setAsBox(40f, 15f, new Vector2(100, -30f), (float)-Math.PI/3);
-        cart.createFixture(boxDef);
-
-        boxDef.density = 1;
-
-        //axle
-        PrismaticJointDef prismaticJointDef;
-
-        axle1Body = world.createBody(bodyDef);
-        polyBox.setAsBox(40f, 10f, new Vector2(-100f - (float)(60*Math.cos(Math.PI/3)), -30f - (float)(60*Math.sin(Math.PI/3))), (float)Math.PI/3);
-        axle1Body.createFixture(boxDef);
-
-        prismaticJointDef = new PrismaticJointDef();
-        prismaticJointDef.initialize(cart, axle1Body, axle1Body.getWorldCenter(), new Vector2((float)Math.cos(Math.PI/3), (float)Math.sin(Math.PI/3)));
-        prismaticJointDef.lowerTranslation = -0.3f;
-        prismaticJointDef.upperTranslation = 0.5f;
-        prismaticJointDef.enableLimit = true;
-        prismaticJointDef.enableMotor = true;
-
-        spring1PrisJoint = (PrismaticJoint)world.createJoint(prismaticJointDef);
-
-        axle2Body = world.createBody(bodyDef);
-        polyBox.setAsBox(40f, 10f, new Vector2(100f + (float)(60*Math.cos(-Math.PI/3)), -30f + (float)(60*Math.sin(-Math.PI/3))), (float)-Math.PI/3);
-        axle2Body.createFixture(boxDef);
-
-        prismaticJointDef.initialize(cart, axle2Body, axle2Body.getWorldCenter(), new Vector2((float)-Math.cos(Math.PI/3), (float)Math.sin(Math.PI/3)));
-
-        spring2PrisJoint = (PrismaticJoint)world.createJoint(prismaticJointDef);
-
-
-        //wheels
-        CircleShape circle = new CircleShape();
-        circle.setPosition(new Vector2(0,0));
-
-        circle.setRadius(50f);
-        float test = axle1Body.getWorldCenter().x;
-        Gdx.app.log("circle pos", " " + test);
-
-        FixtureDef circleDef = new FixtureDef();
-        circleDef.shape = circle;
-        circleDef.density = 0.1f;
-        circleDef.friction = 5f;
-        circleDef.restitution = 0.2f;
-        circleDef.filter.groupIndex = -1;
-
-        for (int i = 0; i < 2; i++)
-        {
-            bodyDef = new BodyDef();
-            bodyDef.type = BodyDef.BodyType.DynamicBody;
-
-            if (i == 0)
-                bodyDef.position.set((float)(axle1Body.getWorldCenter().x - 30*Math.cos(Math.PI/3)), (float)(axle1Body.getWorldCenter().y - 30*Math.sin(Math.PI/3)));
-            else
-                bodyDef.position.set((float)(axle2Body.getWorldCenter().x + 30*Math.cos(-Math.PI/3)), (float)(axle2Body.getWorldCenter().y + 30*Math.sin(-Math.PI/3)));
-
-            bodyDef.allowSleep = false;
-
-            if (i == 0)
-                wheel1Body = world.createBody(bodyDef);
-            else
-                wheel2Body = world.createBody(bodyDef);
-
-            (i == 0 ? wheel1Body : wheel2Body).createFixture(circleDef);
-        }
-
-        //add joints
-        RevoluteJointDef revoluteJointDef = new RevoluteJointDef();
-        revoluteJointDef.enableMotor = true;
-
-        revoluteJointDef.initialize(wheel1Body, axle1Body, wheel1Body.getWorldCenter());
-        motor1RevJoint = (RevoluteJoint)world.createJoint(revoluteJointDef);
-
-        revoluteJointDef.initialize(axle2Body, wheel2Body, wheel2Body.getWorldCenter());
-        motor2RevJoint = (RevoluteJoint)world.createJoint(revoluteJointDef);
-
 
     }
 
@@ -363,26 +293,15 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 	@Override
 	public void dispose() {
         //clean up
-        carImage.dispose();
 		world.dispose();
 	}
 
     @Override
     public boolean touchDown(float x, float y, int pointer, int button) {
 // TODO Auto-generated method stub
-        motor1RevJoint.setMotorSpeed((float)(150*Math.PI * 1));
-        motor1RevJoint.setMaxMotorTorque(170f);
-
-        motor2RevJoint.setMotorSpeed((float)(150*Math.PI * 1));
-        motor2RevJoint.setMaxMotorTorque(170f);
-
-        spring1PrisJoint.setMaxMotorForce((float)(30+Math.abs(800*Math.pow(spring1PrisJoint.getJointTranslation(), 200))));
-        spring1PrisJoint.setMotorSpeed((spring1PrisJoint.getMotorSpeed() - 10*spring1PrisJoint.getJointTranslation())*40);
-
-        spring2PrisJoint.setMaxMotorForce(30+Math.abs(800*(float)Math.pow(spring2PrisJoint.getJointTranslation(), 200)));
-        spring2PrisJoint.setMotorSpeed((spring2PrisJoint.getMotorSpeed() - 10*spring2PrisJoint.getJointTranslation())*40);
-
-        //cart.applyTorque(3f, false);
+        speed *= -1;
+        car.leftMotor.setMotorSpeed(2f * speed);
+        car.rightMotor.setMotorSpeed(2f * speed);
         return false;
     }
     @Override
