@@ -19,7 +19,9 @@ import com.badlogic.gdx.math.Circle;
 import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.physics.box2d.joints.MotorJoint;
 import com.badlogic.gdx.physics.box2d.joints.PrismaticJoint;
@@ -43,6 +45,7 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 
 	World world;
     OrthographicCamera camera;
+    OrthographicCamera guicam;
 
     //Ground variables
     List<Float> verts;
@@ -72,6 +75,11 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
     ShapeRenderer shapeRenderer;
     Matrix4 debugMatrix;
 
+
+    Rectangle wleftBounds;
+    Rectangle wrightBounds;
+
+    Vector3 touchPoint = new Vector3();
 	@Override
 	public void create() {
         super.create();
@@ -82,7 +90,10 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 
         camera = new OrthographicCamera(Gdx.graphics.getWidth(),Gdx.graphics.getHeight());
         camera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        camera.position.set(Gdx.graphics.getWidth()/2f, Gdx.graphics.getHeight()/2f, 0);
+
+
+        guicam = new OrthographicCamera(Gdx.graphics.getWidth(),Gdx.graphics.getHeight());
+        guicam.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 
         Gdx.input.setInputProcessor(new GestureDetector(this));
 
@@ -91,7 +102,6 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 
         shapeRenderer = new ShapeRenderer();
         debugRenderer = new Box2DDebugRenderer();
-
 
         polyBatch = new PolygonSpriteBatch(); // To assign at the beginning
 
@@ -108,7 +118,8 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 		world = new World(new Vector2(0, -9.86f), true);
 
         car = new Car();
-        car.createVehicle(world);
+        car.CreateVehicle(world);
+        car.SetTextures("car.png", "wheel.png");
 
         verts = new ArrayList<Float>();
         float increment = 128.0f;
@@ -123,26 +134,49 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
         setGroundBody();
 
         debugMatrix = new Matrix4(camera.combined);
+
+        wleftBounds = new Rectangle(0, 0, Gdx.graphics.getWidth()/2, Gdx.graphics.getHeight());
+        wrightBounds = new Rectangle(Gdx.graphics.getWidth()/2, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 	}
 
 
 	@Override
 	public void render()
     {
-        if(camera.position.x  > start + 4096 + Gdx.graphics.getWidth()/2f)
-        {
-            start += 4096;
-            test();
-        }
+        update();
+        //if(camera.position.x  > start + 4096 + Gdx.graphics.getWidth()/2f)
+       // {
+           // start += 4096;
+           // test();
+        //}
 
-        camera.update();
+
+        for (int i=0; i<5; i++){
+            if (!Gdx.input.isTouched(i)) continue;
+            guicam.unproject(touchPoint.set(Gdx.input.getX(i), Gdx.input.getY(i), 0));
+            if (wleftBounds.contains(touchPoint.x, touchPoint.y)){
+
+                car.leftMotor.setMotorSpeed(-400f);
+                car.rightMotor.setMotorSpeed(-400f);
+                //Move your player to the left!
+            }else if (wrightBounds.contains(touchPoint.x, touchPoint.y)){
+                car.leftMotor.setMotorSpeed(400f);
+                car.rightMotor.setMotorSpeed(400f);
+                //Move your player to the right!
+            }
+            else
+            {
+                car.leftMotor.setMotorSpeed(0f);
+                car.rightMotor.setMotorSpeed(0f);
+            }
+        }
 
 		// Advance the world, by the amount of time that has elapsed since thelast frame
 		// Generally in a real game, dont do this in the render loop, as you aretying the physics
 		// update rate to the frame rate, and vice versa
-		world.step(Gdx.graphics.getDeltaTime(), 6, 2);
+        world.step(Gdx.graphics.getDeltaTime()*2, 6, 2);
 
-        camera.update();
+
         shapeRenderer.setProjectionMatrix(camera.combined);
 
         Gdx.gl.glClearColor(1, 1, 1, 1);
@@ -157,21 +191,23 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
         //shapeRenderer.rect(cart.getPosition().x - 124, cart.getPosition().y - 60, 248, 120);
         shapeRenderer.end();
         */
-
-
-        //carSprite.setPosition(cart.getPosition().x - 124, cart.getPosition().y - 60);
-        //carSprite.setRotation(cart.getTransform().getRotation()* (float)degreesToRadians);
-
         spriteBatch.setProjectionMatrix(camera.combined);
 
         spriteBatch.begin();
-        //wheelSprite.setPosition(leftWheel.getPosition().x - 32, leftWheel.getPosition().y - 32);
-        //spriteBatch.draw(wheelSprite, wheelSprite.getX(), wheelSprite.getY());
-        //wheelSprite.setPosition(rightWheel.getPosition().x - 32, rightWheel.getPosition().y - 32);
-        //spriteBatch.draw(wheelSprite, wheelSprite.getX(), wheelSprite.getY());
 
-        //spriteBatch.draw(carSprite, carSprite.getX(), carSprite.getY());
-        debugRenderer.render(world, debugMatrix);
+        car.wheelSprite.setPosition(car.leftWheel.getPosition().x - 32, car.leftWheel.getPosition().y - 32);
+        spriteBatch.draw(car.wheelSprite, car.wheelSprite.getX(), car.wheelSprite.getY());
+        car.wheelSprite.setPosition(car.rightWheel.getPosition().x - 32, car.rightWheel.getPosition().y - 32);
+        spriteBatch.draw(car.wheelSprite, car.wheelSprite.getX(), car.wheelSprite.getY());
+
+        car.chassisSprite.setPosition(car.chassis.getPosition().x - 124 - 28, car.chassis.getPosition().y - 60);
+        spriteBatch.draw(car.chassisSprite, car.chassisSprite.getX(), car.chassisSprite.getY());
+
+        spriteBatch.draw(car.wheelSprite, wleftBounds.x, wleftBounds.y);
+        spriteBatch.draw(car.wheelSprite, wrightBounds.x, wrightBounds.y);
+
+        debugRenderer.render(world, camera.combined);
+
         spriteBatch.end();
 
         polyBatch.setProjectionMatrix(camera.combined);
@@ -179,8 +215,20 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
         polySprite.draw(polyBatch);
         polyBatch.end();
 
+
 	}
 
+    public void update()
+    {
+        car.leftSpring.setMaxMotorForce(30+(float)Math.abs(800*Math.pow(car.leftSpring.getJointTranslation(), 2)));
+        car.leftSpring.setMotorSpeed((car.leftSpring.getMotorSpeed() - 10*car.leftSpring.getJointTranslation())*0.4f);
+
+        car.rightSpring.setMaxMotorForce(30+(float)Math.abs(800*Math.pow(car.rightSpring.getJointTranslation(), 2)));
+        car.rightSpring.setMotorSpeed((car.rightSpring.getMotorSpeed() - 10*car.rightSpring.getJointTranslation())*0.4f);
+
+        camera.position.set(car.chassis.getPosition().x, car.chassis.getPosition().y, 0);
+        camera.update();
+    }
     public static int randInt(int min, int max) {
 
         Random rand;
@@ -193,8 +241,6 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 
     public void test()
     {
-        Gdx.app.log("start x ", ": " + start);
-        Gdx.app.log("camera x ", ": " + camera.position.x);
         for(int i = 0; i < 512; i++)
         {
             test[i] = verts.get(i+holder);
@@ -275,8 +321,8 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
 
             groundFixtureDef[i] = new FixtureDef();
             groundFixtureDef[i].shape = groundPoly[i];
-            groundFixtureDef[i].friction = 0.5f;
-            groundFixtureDef[i].density = 2f;
+            groundFixtureDef[i].friction = 1f;
+            groundFixtureDef[i].density = 0f;
 
             groundFixture[i] = groundBody[i].createFixture(groundFixtureDef[i]);
         }
@@ -299,9 +345,11 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
     @Override
     public boolean touchDown(float x, float y, int pointer, int button) {
 // TODO Auto-generated method stub
-        speed *= -1;
-        car.leftMotor.setMotorSpeed(2f * speed);
-        car.rightMotor.setMotorSpeed(2f * speed);
+        //speed *= -1f;
+        //car.leftMotor.setMotorSpeed(20f * speed);
+        //car.rightMotor.setMotorSpeed(20f * speed);
+
+        //car.chassis.applyTorque(5f*-speed, true);
         return false;
     }
     @Override
@@ -322,8 +370,8 @@ public class Game extends ApplicationAdapter implements GestureDetector.GestureL
     @Override
     public boolean pan(float x, float y, float deltaX, float deltaY) {
         // TODO Auto-generated method stub
-        camera.translate(-deltaX, 0);
-        camera.update();
+        //camera.translate(-deltaX, 0);
+        //camera.update();
         return false;
     }
     @Override
